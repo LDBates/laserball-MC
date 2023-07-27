@@ -2,8 +2,11 @@
 Monte-Carlo simulations to measure the temporal and optical performance of a laserball calibration device. 
 
 Originally written by Sammy Valder and Martti Nirkko, University of Sussex, (2022).
+
 Modified by Lewis Bates, Supervisor: Dr Patrick Stowell, University of Sheffield (2023)
+
 Updated configuration file provided by Imperial College London
+
 Support from Alie Craplet and Dr Lauren Anthony, Imperial College London
 
 ## Dependencies
