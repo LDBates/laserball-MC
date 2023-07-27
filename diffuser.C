@@ -6,17 +6,20 @@
 
 // Helper functions (includes everything else)
 #include "include/utilities.C"
-#include "include/config.C"
+#include "include/config-new.C"
+
+
 
 // *****************************************************************************
 // Function declarations
-TVector3 diffuser(double& tracklen, double scatlen);
+std::array<double,6> diffuser(double& tracklen, double density, double min_density, double r_bub, double end_radii);
 double distance_to_wall(TVector3&, TVector3&);
 double reflection_prob(const double& n1, const double& n2, const double &impact);
 TVector3 propagate(TVector3&, TVector3&, double& distance);
 TVector3 scatter(TVector3&, TVector3&, double& impact);
 TVector3 reflect_or_refract(TVector3&, TVector3&, double& impact, bool& exitflask);
-double GetScatteringLength(double density);
+double GetScatteringLength(double density, double min_density, double r_bub, double zpos);
+void PlotInitialXYZ(int events, double end_radii);
 
 // Other global objects (TODO - BAD PRACTICE)
 TRandom3* gen = new TRandom3();
@@ -24,7 +27,7 @@ TF1* aperture = new TF1("aperture","cos(pi/2*x/[0])",0,NA);
 TVector3 pos, dir, newpos, newdir, endpos, enddir;
 TGraph trackS, trackT, trackU; // side view, top view
 TH1D htrk("htrk","Single photon tracking (statistics);Distance between scatters [mm];Events",NBINS/2,0,5);
-TFile outfile("diffuser.root","RECREATE");
+TFile outfile("diffuser-all.root","RECREATE");
 int event;
 
 // *****************************************************************************
@@ -41,7 +44,6 @@ int main(int argc, char** argv) {
   gen->SetSeed(0);
   aperture->SetParameter(0,NA);
   TVector3 endpos;
-  TVector3 outdir;
   double length;
   gStyle->SetTitleOffset(1.1,"x");
   gStyle->SetTitleOffset(1.4,"y");
@@ -52,54 +54,93 @@ int main(int argc, char** argv) {
   std::string tang;
   std::string ttpo;
   std::string ttag;
+  std::array<double,6> XYZoutput;
+  TVector3 outdir;
 
   // Loop over all offsets
+
+  for (double r_bub : bub_radii){ 
+
+    for (double end_radii : radii_of_curvature){
+
+      PlotInitialXYZ(1000,end_radii); 
+
   for (int it=0; it<sizeof(var)/sizeof(double); it++) {
     
     if (VAR == 0){
       OFFSET = var[it];
-      tlen = Form("hesc_z0_%.0fmm",OFFSET*1e3);
-      tphi = Form("hphi_z0_%.0fmm",OFFSET*1e3);
-      tcth = Form("hcth_z0_%.0fmm",OFFSET*1e3);
-      tang = Form("hang_z0_%.0fmm",OFFSET*1e3);
-      ttpo = Form("htpo_z0_%.0fmm",OFFSET*1e3);
-      ttag = Form("htag_z0_%.0fmm",OFFSET*1e3);
+      tlen = Form("hesc_z0_%.0fmm%.0f",OFFSET*1e3,end_radii*10);
+      tphi = Form("hphi_z0_%.0fmm%.0f",OFFSET*1e3,end_radii*10);
+      tcth = Form("hcth_z0_%.0fmm%.0f",OFFSET*1e3,end_radii*10);
+      tang = Form("hang_z0_%.0fmm%.0f",OFFSET*1e3,end_radii*10);
+      ttpo = Form("htpo_z0_%.0fmm%.0f",OFFSET*1e3,end_radii*10);
+      ttag = Form("htag_z0_%.0fmm%.0f",OFFSET*1e3,end_radii*10);
       cout << endl << "SIMULATING DIFFUSER WITH INJECTION POINT OFFSET Z = " << OFFSET << " mm" << endl;
+      cout << "INJECTION ROD RADIUS OF CURVATURE r = " << end_radii << " mm"<<endl;
     }
 
     if (VAR == 1){
+
       con_bub = var[it];
-      tlen = Form("hesc_z0_%.0fmgmL",con_bub*1e6);
-      tphi = Form("hphi_z0_%.0fmgmL",con_bub*1e6);
-      tcth = Form("hcth_z0_%.0fmgmL",con_bub*1e6);
-      tang = Form("hang_z0_%.0fmgmL",con_bub*1e6);
-      ttpo = Form("htpo_z0_%.0fmgmL",con_bub*1e6);
-      ttag = Form("htag_z0_%.0fmgmL",con_bub*1e6);
-      cout << endl << "SIMULATING DIFFUSER WITH GLASS BEAD CONCENTRATION = " << con_bub*1e3 << " mg/ml" << endl;
+      min_con_bub = minimum_density[it];
+      tlen = Form("hesc_z0_%.0fmgmL%.0fum%.0fmgmL%.0fmm",con_bub*1e6,r_bub*1e4,min_con_bub*1e6,end_radii);
+      tphi = Form("hphi_z0_%.0fmgmL%.0fum%.0fmgmL%.0fmm",con_bub*1e6,r_bub*1e4,min_con_bub*1e6,end_radii);
+      tcth = Form("hcth_z0_%.0fmgmL%.0fum%.0fmgmL%.0fmm",con_bub*1e6,r_bub*1e4,min_con_bub*1e6,end_radii);
+      tang = Form("hang_z0_%.0fmgmL%.0fum%.0fmgmL%.0fmm",con_bub*1e6,r_bub*1e4,min_con_bub*1e6,end_radii);
+      ttpo = Form("htpo_z0_%.0fmgmL%.0fum%.0fmgmL%.0fmm",con_bub*1e6,r_bub*1e4,min_con_bub*1e6,end_radii);
+      ttag = Form("htag_z0_%.0fmgmL%.0fum%.0fmgmL%.0fmm",con_bub*1e6,r_bub*1e4,min_con_bub*1e6,end_radii);
+      cout << endl << "SIMULATING DIFFUSER WITH MAXIMUM BEAD CONCENTRATION = " << con_bub*1e3 << " mg/ml" << endl;
+      cout << "MINIMUM BEAD CONCENTRATION = " << min_con_bub*1e3 << " mg/mL" << endl;
     }
 
-    scatlen = 10*GetScatteringLength(con_bub); // mean free path [mm]
-    if(VERBOSE > 1) cout << "Scattering length = " << scatlen << " mm" << endl;
+    TH1D hesc(tlen.c_str(),Form("Escape time from diffuser % cm;t [ns];Events [#times 10^{3}]"),10*NBINS,0,10.);
+    TH1D hphi(tphi.c_str(),Form("Azimuthal distribution % cm;#phi [#pi];Events [#times 10^{3}]"),NBINS,-1,1);
+    TH1D hcth(tcth.c_str(),Form("Polar distribution % cm;cos(#theta) [ ];Events [#times 10^{3}]"),NBINS,-1,1);
+    TH2D hang(tang.c_str(),Form("Angular distribution of diffuser % cm;#phi [#pi];cos(#theta) [ ]",r_bub),NBINS/2,-1,1,NBINS/2,-1,1);
+    TH2D htpo(ttpo.c_str(),Form("Timing as a function of polar angle % cm"), NBINS,-1,1,NBINS,0,3);
+    TH3D htag(ttag.c_str(),Form("Temporal distribution across diffuser;#phi [#pi];cos(#theta);Escape time [ns]"),NBINS/2,-1,1,NBINS/2,-1,1,NBINS/2,0,10);
 
-    TH1D hesc(tlen.c_str(),"Escape time from diffuser;t [ns];Events [#times 10^{3}]",10*NBINS,0,10.);
-    TH1D hphi(tphi.c_str(),Form("Azimuthal distribution;#phi [#pi];Events [#times 10^{3}]"),NBINS,-1,1);
-    TH1D hcth(tcth.c_str(),Form("Polar distribution;cos(#theta) [ ];Events [#times 10^{3}]"),NBINS,-1,1);
-    TH2D hang(tang.c_str(),"Angular distribution of diffuser;#phi [#pi];cos(#theta) [ ]",NBINS/2,-1,1,NBINS/2,-1,1);
-    TH2D htpo(ttpo.c_str(),"Timing as a function of polar angle", NBINS,-1,1,NBINS,0,3);
-    TH3D htag(ttag.c_str(),"Temporal distribution across diffuser;#phi [#pi];cos(#theta);Escape time [ns]",NBINS/2,-1,1,NBINS/2,-1,1,NBINS/2,0,10);
-    
     // Generate events
+
+    std::ofstream PhotonPos("Photon_Positions.csv");
+    PhotonPos<<"X[mm],Y[mm],Z[mm],dx,dy,dz\n";
+
+    TCanvas c97("c97","",1200,1200);
+    TGraph2D Finalxyz(1000);
+
     for (event=0; event<NEVENTS; event++) {
       printProgress(event,NEVENTS);
-      endpos = diffuser(length, scatlen);
-      outdir = endpos.Unit();
+      XYZoutput = diffuser(length, con_bub, min_con_bub, r_bub,end_radii);
+
+      double dx = sin(XYZoutput[5])*cos(XYZoutput[4]);
+
+      double dy = cos(XYZoutput[5])*sin(XYZoutput[4]);
+
+      double dz = cos(XYZoutput[5]);
+
+      PhotonPos<<XYZoutput[0]<<","<<XYZoutput[1]<<","<<XYZoutput[2]<<","<<dx<<","<<dy<<","<<dz<<"\n";
+
       hesc.Fill(length/cs); // assume constant speed in silicone, neglect time spend in bubbles
-      hphi.Fill(outdir.Phi()/pi);
-      hcth.Fill(cos(outdir.Theta()));
-      hang.Fill(outdir.Phi()/pi,cos(outdir.Theta()));
-      htpo.Fill((cos(outdir.Theta())),length/cs);
-      htag.Fill(outdir.Phi()/pi,cos(outdir.Theta()),length/cs);
+      hphi.Fill(XYZoutput[4]/pi);
+      hcth.Fill(cos(XYZoutput[5]));
+      hang.Fill(XYZoutput[4]/pi,cos(XYZoutput[5]));
+      htpo.Fill((cos(XYZoutput[5])),length/cs);
+      htag.Fill(XYZoutput[4]/pi,cos(XYZoutput[5]),length/cs);
+
+      if (event < 1000){
+	Finalxyz.SetPoint(event,XYZoutput[0],XYZoutput[1],XYZoutput[2]);
+      }
     }
+
+    PhotonPos.close();
+
+     Finalxyz.SetTitle("Final XYZ");
+     Finalxyz.GetXaxis()->SetTitle("X");
+     Finalxyz.GetYaxis()->SetTitle("Y");
+     Finalxyz.GetZaxis()->SetTitle("Z");
+     Finalxyz.Draw();
+     c97.Print("FinalXYZ.pdf");
+     c97.Close();
 
     // Plot distributions
     double scale = 1e-3;
@@ -109,63 +150,67 @@ int main(int argc, char** argv) {
     hphi.Scale(scale);
     hphi.SetMinimum(0);
     //hphi.SetAxisRange(0,1.25*NEVENTS/NBINS*scale,"Y");
-    //hphi.GetYaxis()->SetTitleOffset(1.2);
+    hphi.GetYaxis()->SetTitleOffset(1.2);
     hphi.Draw();
+
     c.cd(2)->SetGrid();
     hcth.Scale(scale);
     hcth.SetMinimum(0);
     //hcth.SetAxisRange(0,1.25*NEVENTS/NBINS*scale,"Y");
-    //hcth.GetYaxis()->SetTitleOffset(1.2);
+    hcth.GetYaxis()->SetTitleOffset(1.2);
     hcth.Draw();
     c.cd(3)->SetGrid();
     hang.Draw("colz");
     hang.SetMinimum(0);
     //hang.SetAxisRange(0,5*NEVENTS/NBINS/NBINS,"Z");
-    //hang.GetYaxis()->SetTitleOffset(1.2);
+    hang.GetYaxis()->SetTitleOffset(1.2);
     hang.Draw("colz same");
     c.cd(4)->SetGrid();
     hesc.Scale(scale);
     hesc.SetMinimum(0);
     //hesc.SetAxisRange(0,5*NEVENTS/NBINS*scale,"Y");
     hesc.Draw();
-    if (VAR==0){
-      c.Print(Form("diffuser_z0_%.0fmm.png",OFFSET*1e3));
-      c.Print(Form("diffuser_z0_%.0fmm.pdf",OFFSET*1e3));
-    }
+    // if (VAR==0){
+      //c.Print(Form("diffuser_z0_%.0fmm.png",OFFSET*1e3));
+      // c.Print(Form("diffuser_z0_%.0fmm.pdf",OFFSET*1e3));
+      //}
     if (VAR==1){
-      c.Print(Form("diffuser_z0_%.2fmgmL.png",con_bub*1e3));
-      c.Print(Form("diffuser_z0_%.2fmgmL.pdf",con_bub*1e3));
+      c.Print(Form("diffuser_z0_%.2fmgmL_%.2f_%.2f.png",con_bub*1e3,min_con_bub*1e3,end_radii));
+      //c.Print(Form("diffuser_z0_%.2fmgmL_%.2f.pdf",con_bub*1e3,min_con_bub*1e3));
     }
     c.Close();
 
     TCanvas c2("c2","",1200,1200);
     htpo.Draw("colz");
-    if (VAR==0){
-      c2.Print(Form("diffuser_z0_timimngPolar_%.0fmm.png",OFFSET*1e3));
-      c2.Print(Form("diffuser_z0_timimngPolar_%.0fmm.pdf",OFFSET*1e3));
-    }
-    if (VAR==1){
-      c2.Print(Form("diffuser_z0_timimngPolar_%.2fmgmL.png",con_bub*1e3));
-      c2.Print(Form("diffuser_z0_timimngPolar_%.2fmgmL.pdf",con_bub*1e3));
-    }
+    //if (VAR==0){
+      //c2.Print(Form("diffuser_z0_timimngPolar_%.0fmm.png",OFFSET*1e3));
+      //c2.Print(Form("diffuser_z0_timimngPolar_%.0fmm.pdf",OFFSET*1e3));
+    //}
+    //if (VAR==1){
+      //c2.Print(Form("diffuser_z0_timimngPolar_%.2fmgmL.png",con_bub*1e3));
+      //c2.Print(Form("diffuser_z0_timimngPolar_%.2fmgmL.pdf",con_bub*1e3));
+    //}
     c2.Close();
 
     TCanvas *c3 = new TCanvas();
     htag.Draw("ISO");
-    if (VAR==0){
-      c3->Print(Form("tempAngDist_%.0fmm.png",OFFSET*1e3));
-      c3->Print(Form("tempAngDist_%.0fmm.pdf",OFFSET*1e3));
-    }
-    if (VAR==1){
-      c3->Print(Form("tempAngDist_%.2fmgmL.png",con_bub*1e3));
-      c3->Print(Form("tempAngDist_%.2fmgmL.pdf",con_bub*1e3));
-    }
+    //if (VAR==0){
+      //c3->Print(Form("tempAngDist_%.0fmm.png",OFFSET*1e3));
+      //c3->Print(Form("tempAngDist_%.0fmm.pdf",OFFSET*1e3));
+    //}
+    //if (VAR==1){
+      //c3->Print(Form("tempAngDist_%.2fmgmL.png",con_bub*1e3));
+      //c3->Print(Form("tempAngDist_%.2fmgmL.pdf",con_bub*1e3));
+    //}
     c3->Close();
 
     cout << "Time spread is " << getFWHM(&hesc) << " ns (FWHM)." << endl;
     
     outfile.Write();
   }
+    }
+  }
+  
   outfile.Close();
 
   return 0;
@@ -175,20 +220,39 @@ int main(int argc, char** argv) {
 // Track a single photon through the diffuser flask
 // Inputs: none
 // Output: escape direction of photon, seen from 6m sphere
-TVector3 diffuser(double& tracklen, double scatlen) {
-  
+std::array<double,6> diffuser(double& tracklen, double density, double min_density, double r_bub, double end_radii) {
+
+  std::array<double,6> XYZoutput;
+  TVector3 outdir;
+
   // Photon position at injection point
   pos = e1;
   double A = pi*pow(roddiam/2.,2)*gen->Rndm(); // random within area
+
   pos.SetMag(sqrt(A/pi)); // radius [mm]
   pos.SetPhi(2*pi*gen->Rndm()); // angle [rad]
-  pos += OFFSET*e3; // offset in z-direction
 
-  // Photon direction at injection point
   dir = e3;
-  dir.SetPhi(2*pi*gen->Rndm()); // azimuthal direction [0,2pi)
-  double theta = aperture->GetRandom();
-  dir.SetTheta(pi-theta); // downwards zenith direction [0,NA)
+    
+  if (end_radii >= roddiam/2) {
+    double theta = pi-(asin(pos.Mag()/end_radii));
+    dir.SetTheta(theta);
+
+    //cout<<pos.Mag()<<" "<<end_radii<<" "<<theta<<" "<<dir.Theta()<<endl;
+
+    double curve_offset = sqrt(pow(end_radii,2) - pow(pos.Mag(),2));
+    pos = pos + end_radii*e3 - curve_offset*e3 + OFFSET*e3;
+
+  } else {
+    pos += OFFSET*e3;
+    double theta = aperture->GetRandom();
+    dir.SetTheta(pi-theta);
+  }
+
+    //cout <<sqrt(A/pi)<<" "<<pos.Mag()<<" "<<end_radii<<endl;
+
+  double phiangle = (2*pi*gen->Rndm())-pi;
+  dir.SetPhi(phiangle);//2*pi*gen->Rndm()); // azimuthal direction [0,2pi)
   
   // Photon tracking
   int step = 0;
@@ -205,6 +269,10 @@ TVector3 diffuser(double& tracklen, double scatlen) {
   if (VERBOSE > 1) printf("ENTERING diffuser at (%8.3f %8.3f %8.3f), R=%6.3f\n",pos.X(),pos.Y(),pos.Z(),pos.Mag());
   bool exitflask = false;
   while (!exitflask) {
+
+    double zpos = pos.Z();
+    double scatlen = 10*GetScatteringLength(density, min_density, r_bub, zpos);
+
     if (VERBOSE > 2) printf("position (%8.3f %8.3f %8.3f), direction = (%8.3f %8.3f %8.3f)\n",pos.X(),pos.Y(),pos.Z(),dir.X(),dir.Y(),dir.Z());
     double y = gen->Rndm();
     double dsel = -scatlen*log(y);  // randomly selected distance in diffuser [mm]
@@ -238,8 +306,19 @@ TVector3 diffuser(double& tracklen, double scatlen) {
   }
   
   if (VERBOSE > 1) printf("EXITING diffuser after %d scatters at (%8.3f %8.3f %8.3f), R=%6.3f\n",step,pos.X(),pos.Y(),pos.Z(),pos.Mag());
+
   double RMAX = 6e3; // AV radius [mm] //TODO: Can change this for PMT settings
   endpos = propagate(pos,dir,RMAX);
+
+  outdir = endpos.Unit();
+
+  XYZoutput[0] = pos.X();
+  XYZoutput[1] = pos.Y();
+  XYZoutput[2] = pos.Z();
+  XYZoutput[3] = outdir.Mag();
+  XYZoutput[4] = outdir.Phi();
+  XYZoutput[5] = outdir.Theta();
+
   if (VERBOSE > 1) printf("End point (%8.3f %8.3f %8.3f), R=%6.3f\n",endpos.X(),endpos.Y(),endpos.Z(),endpos.Mag());
   if (!event) {
     trackS.SetPoint(step+1,endpos.X(),endpos.Z());
@@ -291,7 +370,7 @@ TVector3 diffuser(double& tracklen, double scatlen) {
     c.Close();
   }
 
-  return endpos;
+  return XYZoutput;
 }
 
 // *****************************************************************************
@@ -469,8 +548,13 @@ TVector3 reflect_or_refract(TVector3& pos, TVector3& dir, double& impact, bool& 
 
 // *****************************************************************************
 // Get scattering length from theory, given a bubble mass density
-double GetScatteringLength(double density) {
-  if (VERBOSE > 0) cout << "Provided mass density of glass bubbles: " << density << " g/cm^3" << endl;
+double GetScatteringLength(double density,double min_density, double r_bub, double zpos) {
+  //if (VERBOSE > 0) cout << "Provided mass density of glass bubbles: " << density << " g/cm^3" << endl;
+
+  double d_bub = r_bub*wallscale;
+
+  //cout << "Median Radius of Bubbles: " << r_bub*1e4 << " um" << endl;
+  //cout << "Thickness of Bubble Wall: " << d_bub*1e4 << " um" << endl;
   
   // Scattering cross section of glass microspheres
   // https://en.wikipedia.org/wiki/Anomalous_diffraction_theory
@@ -480,18 +564,91 @@ double GetScatteringLength(double density) {
   //double Q = 2. - 4./p*sin(p) + 4./(p*p)*(1.-cos(p)); // scattering efficiency (same as extinction efficiency)
   double Q = 1; // artificial (ignore ADT)
   double sigma = pi*r_bub*r_bub*Q; // scattering cross section [cm²]
-  if (VERBOSE > 0) cout << "Estimated scattering cross section: " << sigma << " cm^2" << endl;
+  // if (VERBOSE > 0) cout << "Estimated scattering cross section: " << sigma << " cm^2" << endl;
   
+  double z_percent = (zpos+R)/flaskdiam;
+  double density_range = density - min_density;
+  double current_density = density - (density_range*z_percent);
+
   // Number density of glass microspheres (very approximate)
   double V = 4.*pi/3.*(pow(r_bub,3) - pow(r_bub-d_bub,3)); // volume of glass [cm³]
   double m = rho_bub*V; // mass of hollow sphere [g]
-  double N = density/m; // number concentration [cm⁻³]
-  if (VERBOSE > 0) cout << "Estimated number density of bubbles: " << N << "/cm^3" << endl;
+  double N = current_density/m; // number concentration [cm⁻³]
+  //if (VERBOSE > 0) cout << "Estimated number density of bubbles: " << N << "/cm^3" << endl;
   
   // Scattering parameters
   double eps = N*sigma; // scattering coefficient [cm⁻¹]
   double L = 1./eps; // scattering length [cm]
-  if (VERBOSE > 0) cout << "Estimated scattering length: " << L << " cm" << endl;
+  //if (VERBOSE > 0) cout << "Estimated scattering length: " << L << " cm" << endl;
 
   return L;
 }
+
+//******************************************************************************
+// Simulate Initial Photon Directions to check rod end curvature
+
+void PlotInitialXYZ(int events, double end_radii) {
+
+  TCanvas c99("c99","",1200,1200);
+  TGraph2D xyzgraph(events);
+  TGraph rtheta(events);
+  TH1D phi("phi",Form("Initial Azimuthal distribution;#phi [#pi];Events [#times 10^{3}]"),NBINS,-1,1);
+  TH1D thetagraph("theta",Form("Initial Polar distribution ;#theta [#pi];Events [#times 10^{3}]"),NBINS,-1,1);
+
+  for (event=0; event<events; event++) {
+    pos = e1;
+    double A = pi*pow(roddiam/2.,2)*gen->Rndm(); // random within area
+    pos.SetMag(sqrt(A/pi)); // radius [mm]
+    pos.SetPhi(2*pi*gen->Rndm()); // angle [rad]
+
+    dir = e3;
+    
+    if (end_radii >= roddiam/2) {
+      double theta = pi-(asin(pos.Mag()/end_radii));
+      dir.SetTheta(theta);
+
+      //cout<<pos.Mag()<<" "<<end_radii<<" "<<theta<<" "<<dir.Theta()<<endl;
+
+      double curve_offset = sqrt(pow(end_radii,2) - pow(pos.Mag(),2));
+      pos = pos + end_radii*e3 - curve_offset*e3 + OFFSET*e3;
+
+    } else {
+      pos += OFFSET*e3;
+      double theta = aperture->GetRandom();
+      dir.SetTheta(pi-theta);
+      }
+
+
+    double phiangle = (2*pi*gen->Rndm())-pi;
+    dir.SetPhi(phiangle);// azimuthal direction [0,2pi)
+    
+    //cout<<dir.Phi()<<" "<<phiangle<<" "<<dir.Theta()<<endl;
+
+    xyzgraph.SetPoint(event,pos.X(),pos.Y(),pos.Z());
+    rtheta.SetPoint(event,pos.Mag(),dir.Theta()/pi);
+    phi.Fill(dir.Phi()/pi);
+    thetagraph.Fill(dir.Theta()/pi);
+    // cout << dir.Theta()<<" "<<dir.Phi()<<" "<<2*pi*gen->Rndm()<<" "<<theta<<endl;
+  }
+  
+  xyzgraph.SetTitle("XYZ");
+  xyzgraph.GetXaxis()->SetTitle("X");
+  xyzgraph.GetYaxis()->SetTitle("Y");
+  xyzgraph.GetZaxis()->SetTitle("Z");
+  xyzgraph.Draw("TRI");
+  c99.Print("XYZ.pdf");
+  c99.Close();
+
+  TCanvas c98("c98","",1200,1200);
+  rtheta.SetTitle("r-#theta");
+  rtheta.GetXaxis()->SetTitle("r [mm]");
+  rtheta.GetYaxis()->SetTitle("#theta [#pi]");
+  rtheta.Draw("A*");
+  c98.Print("R-Theta.pdf");
+  phi.Draw();
+  c98.Print("Phi.pdf");
+  thetagraph.Draw();
+  thetagraph.GetXaxis()->SetRangeUser(0,1);
+  c98.Print("Theta.pdf");
+  c98.Close();
+    }
