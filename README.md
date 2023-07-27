@@ -1,5 +1,10 @@
 # laserball-MC
-Monte-Carlo simulations to measure the temporal and optical performance of a laserball calibration device. Written by Sammy Valder and Martti Nirkko, University of Sussex, (2022). 
+Monte-Carlo simulations to measure the temporal and optical performance of a laserball calibration device. 
+
+Originally written by Sammy Valder and Martti Nirkko, University of Sussex, (2022).
+Modified by Lewis Bates, Supervisor: Dr Patrick Stowell, University of Sheffield (2023)
+Updated configuration file provided by Imperial College London
+Support from Alie Craplet and Dr Lauren Anthony, Imperial College London
 
 ## Dependencies
 The simulations have been tested and are working using:
@@ -9,7 +14,6 @@ The simulations have been tested and are working using:
 
 ## Installation and running
 First clone the repository
-`git clone git@github.com:svalder/laserball-MC.git`
 
 Update the parameters of the simulation using the configuration file `include/config.C`
 
@@ -34,8 +38,8 @@ The configuration file can be found at `include/config.C`. The default parameter
 
 **Other** - Miscellaneous constants.
 
-## Output
-The output from the simulation takes the form of a `ROOT` file with the name `diffuser.root`.
+## Output Root File
+Takes the form of a `ROOT` file with the name `diffuser.root`.
 
 The contents of the root file can be examined using standard `ROOT` techniques, e.g. `root -l`, `new TBrowser()`, etc...
 
@@ -53,7 +57,21 @@ The root file will contain a number of histograms for each of the different valu
 
 `htag` - A 3D plot of the temporal distribution of photons exiting the diffuser, combining the polar and azimuthal information.
 
-The standard units used are: time [ns], cos(angle) [pi], light injection displacement [mm]. 
+The standard units used are: time [ns], cos(angle) [pi], light injection displacement [mm].
+
+## Other Outputs
+
+'XYZ.pdf' - A 3D plot of photon initial positions
+
+'FinalXYZ.pdf' - A 3D plot of photon final positions
+
+'Phi.pdf' - A plot of intial azimuthal distribution of photons
+
+'Theta.pdf' - A plot of intial polar distribution of photons
+
+'R-Theta.pdf' - A plot of intial polar distribution with respect to intial starting radius within injection rod
+
+'Photon_Positions.csv' - Final positions and directions of photons, in columns: X, Y, Z, dx, dy, dz
 
 ## Citation
 When publishing material that contains simulated data using this work, please ensure the code is referenced at all times.
